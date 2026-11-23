@@ -18,7 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -319,18 +318,6 @@ fun SettingsScreen(vm: MainViewModel) {
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
         )
 
-        SectionTitle(tr("Enlaces de YouTube"))
-        Text(
-            tr("Para que Android te pregunte si quieres abrir un enlace de YouTube con esta app: pulsa el botón, entra en \"Enlaces compatibles\" (o \"Abrir enlaces compatibles\") y activa youtube.com y youtu.be. También puedes compartir un enlace directamente hacia RebornTube."),
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-        val context = LocalContext.current
-        FilledTonalButton(
-            onClick = { openLinkSettings(context) },
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-        ) { Text(tr("Abrir ajustes de enlaces")) }
-
         SectionTitle(tr("Apoya RebornTube"))
         Text(
             tr("Si disfrutas de la app, puedes apoyar su desarrollo con una donación voluntaria en Ko-fi. Se abrirá la página oficial fuera de la app; la donación no desbloquea funciones."),
@@ -463,16 +450,6 @@ private fun searchFilterLabel(filter: String): String = when (filter.lowercase()
     "music_songs", "songs", "tracks", "audio" -> tr("Audio y canciones")
     "music_videos" -> tr("Videos musicales")
     else -> filter.replace('_', ' ').replaceFirstChar { it.uppercase() }
-}
-
-private fun openLinkSettings(context: android.content.Context) {
-    val pkg = android.net.Uri.parse("package:${context.packageName}")
-    val intent = if (Build.VERSION.SDK_INT >= 31) {
-        android.content.Intent(android.provider.Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS, pkg)
-    } else {
-        android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg)
-    }
-    runCatching { context.startActivity(intent) }
 }
 
 @Composable
