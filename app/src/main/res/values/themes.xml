@@ -1,0 +1,3 @@
+<resources>
+    <style name="Theme.RebornTube" parent="android:Theme.Material.NoActionBar" />
+</resources>
