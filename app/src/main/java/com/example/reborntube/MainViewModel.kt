@@ -63,6 +63,10 @@ import java.security.MessageDigest
 import java.util.UUID
 import java.util.Locale
 
+private const val MAX_AUTOMATIC_PLAYBACK_RETRIES = 2
+private const val PLAYBACK_RETRY_DELAY_MS = 1_000L
+private const val PLAYBACK_STABLE_WINDOW_MS = 30_000L
+
 @OptIn(UnstableApi::class)
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val appContext = app
@@ -373,6 +377,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var seekIntervalSeconds by mutableStateOf(settings.getInt("seek_interval_seconds", 10).takeIf { it in listOf(5, 10, 15, 30) } ?: 10)
         private set
     var playbackError by mutableStateOf<String?>(null)
+    private var playbackRetryJob: Job? = null
+    private var playbackStableJob: Job? = null
+    private var playbackRetryCount = 0
     var playbackPauseMessage by mutableStateOf<String?>(null)
         private set
     var audioOnly by mutableStateOf(false) // modo música: solo audio, sigue sonando en segundo plano
@@ -525,6 +532,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             syncPlaying()
         }
 
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) {
+                playbackRetryJob?.cancel()
+                playbackRetryJob = null
+                playbackError = null
+                playbackStableJob?.cancel()
+                val playingUrl = current?.url
+                playbackStableJob = viewModelScope.launch {
+                    delay(PLAYBACK_STABLE_WINDOW_MS)
+                    if (activePlayer.isPlaying && current?.url == playingUrl) playbackRetryCount = 0
+                }
+            }
+            syncPlaying()
+        }
+
         override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
             playbackPauseMessage = when (playbackSuppressionReason) {
                 Player.PLAYBACK_SUPPRESSION_REASON_NONE -> null
@@ -552,6 +574,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (casting && !castDirect && !castFellBack) {
                 castFellBack = true
                 current?.let { castCurrent(it, castPlayer?.currentPosition ?: 0L, direct = true) }
+                return
+            }
+            val retryInfo = current
+            playbackStableJob?.cancel()
+            playbackStableJob = null
+            if (retryInfo != null && !casting && fireTvCompanionConnected == null &&
+                isRetryablePlaybackErrorCode(error.errorCode) &&
+                playbackRetryCount < MAX_AUTOMATIC_PLAYBACK_RETRIES
+            ) {
+                val attempt = ++playbackRetryCount
+                val retryPosition = player.currentPosition.coerceAtLeast(0L)
+                playbackRetryJob?.cancel()
+                playbackError = trf(
+                    "Conexión interrumpida. Reintentando (%s/%s)…",
+                    attempt,
+                    MAX_AUTOMATIC_PLAYBACK_RETRIES
+                )
+                playbackRetryJob = viewModelScope.launch {
+                    delay(attempt * PLAYBACK_RETRY_DELAY_MS)
+                    if (current?.url != retryInfo.url || casting || player.mediaItemCount == 0) return@launch
+                    player.seekTo(retryPosition)
+                    applySource(keepPosition = true, playWhenReady = true)
+                }
                 return
             }
             playbackError = trf("Error de reproducción: %s", error.errorCodeName)
@@ -624,6 +669,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        playbackRetryJob?.cancel()
+        playbackStableJob?.cancel()
         player.removeListener(playerListener)
         releaseCast()
     }
@@ -1572,6 +1619,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Abre un vídeo. Mientras se prepara se ve una pantalla de carga con la miniatura. */
     fun open(card: VideoCard, fromQueue: Boolean = false) {
+        playbackRetryJob?.cancel()
+        playbackRetryJob = null
+        playbackStableJob?.cancel()
+        playbackStableJob = null
+        playbackRetryCount = 0
         if (!card.isLive && card.url.isNotBlank()) {
             YouTubeRepository.prefetch(card.url)
         }

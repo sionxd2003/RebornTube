@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
@@ -140,6 +141,10 @@ fun subtitleOptionsOf(info: StreamInfo): List<SubtitlesStream> {
 
 fun isLiveInfo(info: StreamInfo): Boolean =
     info.streamType == StreamType.LIVE_STREAM || info.streamType == StreamType.AUDIO_LIVE_STREAM
+
+internal fun isRetryablePlaybackErrorCode(errorCode: Int): Boolean =
+    errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+        errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
 
 /**
  * HLS solo para directos o cuando no hay vídeo+audio progresivos. Antes se usaba HLS siempre que

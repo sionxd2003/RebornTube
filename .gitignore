@@ -10,6 +10,10 @@ build/
 *.jks
 *.keystore
 keystore.properties
+*.pem
+*.p12
+*.pfx
+secrets.properties
 .env
 .DS_Store
 Thumbs.db

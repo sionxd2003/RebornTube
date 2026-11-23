@@ -32,6 +32,7 @@ private val englishTexts: Map<String, String> = mapOf(
     "Fire TV encontrado." to "Fire TV found.",
     "No se pudo acceder al Fire TV. Comprueba la IP y que el módem permita la comunicación entre dispositivos." to "Could not reach the Fire TV. Check the IP and make sure the router allows communication between devices.",
     "Conectar por IP" to "Connect by IP",
+    "Conexión interrumpida. Reintentando (%s/%s)…" to "Connection interrupted. Retrying (%s/%s)…",
     "Desconectar y continuar en el celular" to "Disconnect and continue on phone",
     "No se pudo detener el video en el televisor; se reanudó en el celular." to "Could not stop the video on the TV; it resumed on the phone.",
     "Enciende la TV o el Chromecast y comprueba que estén en la misma red Wi-Fi que el móvil." to "Turn on the TV or Chromecast and make sure it is on the same Wi-Fi network as your phone.",
