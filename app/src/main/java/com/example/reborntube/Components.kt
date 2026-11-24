@@ -285,9 +285,15 @@ fun OpeningOverlay(card: VideoCard) {
  * automáticamente. Si una carga falla no se repite en bucle: se reintenta al volver a pasar por aquí.
  */
 @Composable
-fun LoadMoreSentinel(hasMore: Boolean, loading: Boolean, key: Any, onLoad: () -> Unit) {
+fun LoadMoreSentinel(
+    hasMore: Boolean,
+    loading: Boolean,
+    key: Any,
+    onLoad: () -> Unit,
+    showLoading: Boolean = true
+) {
     var requested by remember { mutableStateOf<Any?>(null) }
-    if (loading) {
+    if (loading && showLoading) {
         LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
     }
     LaunchedEffect(key, hasMore, loading) {

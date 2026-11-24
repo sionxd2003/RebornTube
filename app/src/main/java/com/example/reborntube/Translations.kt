@@ -2,19 +2,176 @@ package com.example.reborntube
 
 import java.util.Locale
 
+object AppLanguage {
+    var overrideCode: String = "system"
+}
+
 /**
  * Traducción de la interfaz. Los textos están escritos en español: en un móvil en español no cambia
  * nada, y en cualquier otro idioma salen en inglés (si falta una traducción, se queda en español).
  */
 fun tr(es: String): String {
-    if (Locale.getDefault().language == "es") return es
-    return englishTexts[es] ?: es
+    val language = if (AppLanguage.overrideCode == "system") Locale.getDefault().language
+    else AppLanguage.overrideCode
+    if (language == "es") return es
+    if (language == "pap") return papiamentoTexts[es] ?: englishTexts[es] ?: es
+    musicTexts[language]?.get(es)?.let { return it }
+    return when (language) {
+        "en" -> englishTexts[es] ?: es
+        "pt" -> portugueseTexts[es] ?: englishTexts[es] ?: es
+        "fr" -> frenchTexts[es] ?: englishTexts[es] ?: es
+        "de" -> germanTexts[es] ?: englishTexts[es] ?: es
+        "it" -> italianTexts[es] ?: englishTexts[es] ?: es
+        "ja" -> japaneseTexts[es] ?: englishTexts[es] ?: es
+        "ko" -> koreanTexts[es] ?: englishTexts[es] ?: es
+        "zh" -> chineseTexts[es] ?: englishTexts[es] ?: es
+        "ar" -> arabicTexts[es] ?: englishTexts[es] ?: es
+        "hi" -> hindiTexts[es] ?: englishTexts[es] ?: es
+        "ru" -> russianTexts[es] ?: englishTexts[es] ?: es
+        "tr" -> turkishTexts[es] ?: englishTexts[es] ?: es
+        "nl" -> dutchTexts[es] ?: englishTexts[es] ?: es
+        "pl" -> polishTexts[es] ?: englishTexts[es] ?: es
+        else -> englishTexts[es] ?: es
+    }
 }
+
+private val musicTexts: Map<String, Map<String, String>> = mapOf(
+        "pt" to mapOf(
+            "Mi música" to "Minha música", "Buscar en mi música" to "Buscar na minha música",
+            "Reproducir todo" to "Reproduzir tudo", "Añadidas recientemente" to "Adicionadas recentemente",
+            "Todas las canciones" to "Todas as músicas", "Descarga pendiente" to "Download pendente",
+            "No se encontraron canciones." to "Nenhuma música encontrada.", "Quitar de Me gusta" to "Remover das curtidas",
+            "Tu colección de audio, disponible sin conexión" to "Sua coleção de áudio, disponível offline",
+            "No hay canciones descargadas listas." to "Não há músicas baixadas prontas."
+        ),
+        "fr" to mapOf(
+            "Mi música" to "Ma musique", "Buscar en mi música" to "Rechercher dans ma musique",
+            "Reproducir todo" to "Tout lire", "Añadidas recientemente" to "Ajoutées récemment",
+            "Todas las canciones" to "Toutes les chansons", "Descarga pendiente" to "Téléchargement en attente",
+            "No se encontraron canciones." to "Aucune chanson trouvée.", "Quitar de Me gusta" to "Retirer des favoris",
+            "Tu colección de audio, disponible sin conexión" to "Votre collection audio, disponible hors ligne",
+            "No hay canciones descargadas listas." to "Aucune chanson téléchargée prête."
+        ),
+        "de" to mapOf(
+            "Mi música" to "Meine Musik", "Buscar en mi música" to "Meine Musik durchsuchen",
+            "Reproducir todo" to "Alles abspielen", "Añadidas recientemente" to "Zuletzt hinzugefügt",
+            "Todas las canciones" to "Alle Songs", "Descarga pendiente" to "Download ausstehend",
+            "No se encontraron canciones." to "Keine Songs gefunden.", "Quitar de Me gusta" to "Aus „Gefällt mir“ entfernen",
+            "Tu colección de audio, disponible sin conexión" to "Deine Audiosammlung, offline verfügbar",
+            "No hay canciones descargadas listas." to "Keine heruntergeladenen Songs bereit."
+        ),
+        "it" to mapOf(
+            "Mi música" to "La mia musica", "Buscar en mi música" to "Cerca nella mia musica",
+            "Reproducir todo" to "Riproduci tutto", "Añadidas recientemente" to "Aggiunti di recente",
+            "Todas las canciones" to "Tutti i brani", "Descarga pendiente" to "Download in attesa",
+            "No se encontraron canciones." to "Nessun brano trovato.", "Quitar de Me gusta" to "Rimuovi dai Mi piace",
+            "Tu colección de audio, disponible sin conexión" to "La tua raccolta audio, disponibile offline",
+            "No hay canciones descargadas listas." to "Nessun brano scaricato pronto."
+        ),
+        "ja" to mapOf(
+            "Mi música" to "マイミュージック", "Buscar en mi música" to "マイミュージックを検索",
+            "Reproducir todo" to "すべて再生", "Añadidas recientemente" to "最近追加",
+            "Todas las canciones" to "すべての曲", "Descarga pendiente" to "ダウンロード待ち",
+            "No se encontraron canciones." to "曲が見つかりません。", "Quitar de Me gusta" to "高評価から削除",
+            "Tu colección de audio, disponible sin conexión" to "オフラインで聴ける音楽コレクション",
+            "No hay canciones descargadas listas." to "再生できるダウンロード済みの曲はありません。"
+        ),
+        "ko" to mapOf(
+            "Mi música" to "내 음악", "Buscar en mi música" to "내 음악 검색",
+            "Reproducir todo" to "모두 재생", "Añadidas recientemente" to "최근 추가",
+            "Todas las canciones" to "모든 노래", "Descarga pendiente" to "다운로드 대기 중",
+            "No se encontraron canciones." to "노래를 찾을 수 없습니다.", "Quitar de Me gusta" to "좋아요에서 삭제",
+            "Tu colección de audio, disponible sin conexión" to "오프라인에서 들을 수 있는 음악 모음",
+            "No hay canciones descargadas listas." to "재생할 다운로드 음악이 없습니다."
+        ),
+        "zh" to mapOf(
+            "Mi música" to "我的音乐", "Buscar en mi música" to "搜索我的音乐",
+            "Reproducir todo" to "播放全部", "Añadidas recientemente" to "最近添加",
+            "Todas las canciones" to "所有歌曲", "Descarga pendiente" to "等待下载",
+            "No se encontraron canciones." to "未找到歌曲。", "Quitar de Me gusta" to "从点赞中移除",
+            "Tu colección de audio, disponible sin conexión" to "可离线收听的音乐收藏",
+            "No hay canciones descargadas listas." to "没有可播放的已下载歌曲。"
+        ),
+        "ru" to mapOf(
+            "Mi música" to "Моя музыка", "Buscar en mi música" to "Поиск в моей музыке",
+            "Reproducir todo" to "Воспроизвести всё", "Añadidas recientemente" to "Недавно добавлено",
+            "Todas las canciones" to "Все песни", "Descarga pendiente" to "Ожидает загрузки",
+            "No se encontraron canciones." to "Песни не найдены.", "Quitar de Me gusta" to "Убрать из понравившегося",
+            "Tu colección de audio, disponible sin conexión" to "Твоя музыкальная коллекция доступна офлайн",
+            "No hay canciones descargadas listas." to "Нет готовых загруженных песен."
+        ),
+        "nl" to mapOf(
+            "Mi música" to "Mijn muziek", "Buscar en mi música" to "Zoek in mijn muziek",
+            "Reproducir todo" to "Alles afspelen", "Añadidas recientemente" to "Onlangs toegevoegd",
+            "Todas las canciones" to "Alle nummers", "Descarga pendiente" to "Download in wachtrij",
+            "No se encontraron canciones." to "Geen nummers gevonden.", "Quitar de Me gusta" to "Verwijderen uit Vind ik leuk",
+            "Tu colección de audio, disponible sin conexión" to "Je muziekcollectie is offline beschikbaar",
+            "No hay canciones descargadas listas." to "Er staan geen gedownloade nummers klaar."
+        ),
+        "pl" to mapOf(
+            "Mi música" to "Moja muzyka", "Buscar en mi música" to "Szukaj w mojej muzyce",
+            "Reproducir todo" to "Odtwórz wszystko", "Añadidas recientemente" to "Ostatnio dodane",
+            "Todas las canciones" to "Wszystkie utwory", "Descarga pendiente" to "Oczekuje na pobranie",
+            "No se encontraron canciones." to "Nie znaleziono utworów.", "Quitar de Me gusta" to "Usuń z polubionych",
+            "Tu colección de audio, disponible sin conexión" to "Twoja kolekcja muzyki dostępna offline",
+            "No hay canciones descargadas listas." to "Brak gotowych pobranych utworów."
+        )
+    )
 
 /** Igual que tr() pero con valores: el texto lleva el marcador de cada valor. */
 fun trf(es: String, vararg args: Any?): String = String.format(tr(es), *args)
 
 private val englishTexts: Map<String, String> = mapOf(
+    "Mi música" to "My music",
+    "%s canciones" to "%s songs",
+    "Tu colección de audio, disponible sin conexión" to "Your audio collection, available offline",
+    "Buscar en mi música" to "Search my music",
+    "Reproducir todo" to "Play all",
+    "Añadidas recientemente" to "Recently added",
+    "Todas las canciones" to "All songs",
+    "Descarga música desde cualquier vídeo con la opción Solo audio y aparecerá aquí." to "Download audio from any video using the Audio only option and it will appear here.",
+    "No se encontraron canciones." to "No songs found.",
+    "Descarga pendiente" to "Download pending",
+    "Quitar de Me gusta" to "Remove from liked songs",
+    "No hay canciones descargadas listas." to "There are no downloaded songs ready.",
+    "Abrir enlace" to "Open link",
+    "Nuevo video" to "New video",
+    "Videos nuevos" to "New videos",
+    "Sincronización con Fire TV" to "Fire TV synchronization",
+    "Mantiene actualizado el progreso de reproducción en Fire TV." to "Keeps playback progress updated with Fire TV.",
+    "Canales" to "Channels",
+    "Cargando..." to "Loading...",
+    "Dislikes no disponibles" to "Dislikes unavailable",
+    "Error al cargar más directos" to "Error loading more live streams",
+    "Idioma de la app y contenido" to "App and content language",
+    "Más opciones" to "More options",
+    "Modo ambiente" to "Ambient mode",
+    "No se encontraron canales." to "No channels found.",
+    "No se encontraron videos." to "No videos found.",
+    "No se pudieron cargar los dislikes" to "Could not load dislikes",
+    "No se pudo cargar el filtro del canal" to "Could not load the channel filter",
+    "No se pudo encontrar la dirección Wi-Fi del celular para sincronizar el progreso." to "Could not find the phone Wi-Fi address to sync playback progress.",
+    "No se pudo identificar el canal" to "Could not identify the channel",
+    "Videos" to "Videos",
+    "Idioma de contenido" to "Content language",
+    "Del sistema" to "System",
+    "Español" to "Spanish",
+    "Inglés" to "English",
+    "Portugués" to "Portuguese",
+    "Francés" to "French",
+    "Alemán" to "German",
+    "Italiano" to "Italian",
+    "Japonés" to "Japanese",
+    "Coreano" to "Korean",
+    "Chino" to "Chinese",
+    "Árabe" to "Arabic",
+    "Hindi" to "Hindi",
+    "Ruso" to "Russian",
+    "Turco" to "Turkish",
+    "Neerlandés" to "Dutch",
+    "Polaco" to "Polish",
+    "Papiamento" to "Papiamento",
+    "Cambia los títulos, sugerencias y resultados que entrega el extractor sin cambiar el país de contenido." to "Changes titles, suggestions and results returned by the extractor without changing the content country.",
     "Actualizaciones" to "Updates",
     "Buscar actualización" to "Check for update",
     "Comprobando…" to "Checking…",
@@ -442,8 +599,8 @@ private val englishTexts: Map<String, String> = mapOf(
     "semanas" to "weeks",
     "mes" to "month",
     "meses" to "months",
-    "aÃ±o" to "year",
-    "aÃ±os" to "years",
+    "año" to "year",
+    "años" to "years",
     "%s suscriptores · " to "%s subscribers · ",
     "%s suscriptores" to "%s subscribers",
     "%s vídeos" to "%s videos",
@@ -583,4 +740,197 @@ private val englishTexts: Map<String, String> = mapOf(
     "Tu contenido" to "Your content",
     "Explorar" to "Explore",
     "La app" to "The app",
+)
+
+private val portugueseTexts: Map<String, String> = mapOf(
+    "Ajustes" to "Configurações", "Inicio" to "Início", "Biblioteca" to "Biblioteca",
+    "Suscripciones" to "Inscrições", "Directos" to "Ao vivo", "Novedades" to "Novidades",
+    "Tendencias" to "Em alta", "Buscar" to "Pesquisar", "Apariencia" to "Aparência",
+    "Actualizaciones" to "Atualizações", "Vídeos" to "Vídeos", "Comentarios" to "Comentários",
+    "Más recientes" to "Mais recentes", "Populares" to "Populares", "Más antiguos" to "Mais antigos",
+    "Historial" to "Histórico", "Guardar" to "Salvar", "Compartir" to "Compartilhar"
+)
+private val frenchTexts: Map<String, String> = mapOf(
+    "Ajustes" to "Paramètres", "Inicio" to "Accueil", "Biblioteca" to "Bibliothèque",
+    "Suscripciones" to "Abonnements", "Directos" to "En direct", "Novedades" to "Actualités",
+    "Tendencias" to "Tendances", "Buscar" to "Rechercher", "Apariencia" to "Apparence",
+    "Actualizaciones" to "Mises à jour", "Vídeos" to "Vidéos", "Comentarios" to "Commentaires",
+    "Más recientes" to "Plus récents", "Populares" to "Populaires", "Más antiguos" to "Plus anciens",
+    "Historial" to "Historique", "Guardar" to "Enregistrer", "Compartir" to "Partager"
+)
+private val germanTexts: Map<String, String> = mapOf(
+    "Ajustes" to "Einstellungen", "Inicio" to "Startseite", "Biblioteca" to "Bibliothek",
+    "Suscripciones" to "Abos", "Directos" to "Live", "Novedades" to "Neuigkeiten",
+    "Tendencias" to "Trends", "Buscar" to "Suchen", "Apariencia" to "Darstellung",
+    "Actualizaciones" to "Updates", "Vídeos" to "Videos", "Comentarios" to "Kommentare",
+    "Más recientes" to "Neueste", "Populares" to "Beliebt", "Más antiguos" to "Älteste",
+    "Historial" to "Verlauf", "Guardar" to "Speichern", "Compartir" to "Teilen"
+)
+private val italianTexts: Map<String, String> = mapOf(
+    "Ajustes" to "Impostazioni", "Inicio" to "Home", "Biblioteca" to "Biblioteca",
+    "Suscripciones" to "Iscrizioni", "Directos" to "Dirette", "Novedades" to "Novità",
+    "Tendencias" to "Di tendenza", "Buscar" to "Cerca", "Apariencia" to "Aspetto",
+    "Actualizaciones" to "Aggiornamenti", "Vídeos" to "Video", "Comentarios" to "Commenti",
+    "Más recientes" to "Più recenti", "Populares" to "Popolari", "Más antiguos" to "Più vecchi",
+    "Historial" to "Cronologia", "Guardar" to "Salva", "Compartir" to "Condividi"
+)
+private val japaneseTexts: Map<String, String> = mapOf(
+    "Ajustes" to "設定", "Inicio" to "ホーム", "Biblioteca" to "ライブラリ",
+    "Suscripciones" to "登録チャンネル", "Directos" to "ライブ", "Novedades" to "新着",
+    "Tendencias" to "急上昇", "Buscar" to "検索", "Apariencia" to "外観",
+    "Actualizaciones" to "アップデート", "Vídeos" to "動画", "Comentarios" to "コメント",
+    "Más recientes" to "新しい順", "Populares" to "人気", "Más antiguos" to "古い順",
+    "Historial" to "履歴", "Guardar" to "保存", "Compartir" to "共有"
+)
+private val koreanTexts: Map<String, String> = mapOf(
+    "Ajustes" to "설정", "Inicio" to "홈", "Biblioteca" to "보관함",
+    "Suscripciones" to "구독", "Directos" to "라이브", "Novedades" to "새 영상",
+    "Tendencias" to "인기", "Buscar" to "검색", "Apariencia" to "모양",
+    "Actualizaciones" to "업데이트", "Vídeos" to "동영상", "Comentarios" to "댓글",
+    "Más recientes" to "최신순", "Populares" to "인기순", "Más antiguos" to "오래된순",
+    "Historial" to "기록", "Guardar" to "저장", "Compartir" to "공유"
+)
+private val chineseTexts: Map<String, String> = mapOf(
+    "Ajustes" to "设置", "Inicio" to "首页", "Biblioteca" to "媒体库",
+    "Suscripciones" to "订阅", "Directos" to "直播", "Novedades" to "最新动态",
+    "Tendencias" to "热门", "Buscar" to "搜索", "Apariencia" to "外观",
+    "Actualizaciones" to "更新", "Vídeos" to "视频", "Comentarios" to "评论",
+    "Más recientes" to "最新", "Populares" to "热门", "Más antiguos" to "最早",
+    "Historial" to "历史记录", "Guardar" to "保存", "Compartir" to "分享"
+)
+private val arabicTexts: Map<String, String> = mapOf(
+    "Ajustes" to "الإعدادات", "Inicio" to "الرئيسية", "Biblioteca" to "المكتبة",
+    "Suscripciones" to "الاشتراكات", "Directos" to "البث المباشر", "Novedades" to "الجديد",
+    "Tendencias" to "الشائعة", "Buscar" to "بحث", "Apariencia" to "المظهر",
+    "Actualizaciones" to "التحديثات", "Vídeos" to "الفيديوهات", "Comentarios" to "التعليقات",
+    "Más recientes" to "الأحدث", "Populares" to "الأكثر شعبية", "Más antiguos" to "الأقدم",
+    "Historial" to "السجل", "Guardar" to "حفظ", "Compartir" to "مشاركة"
+)
+private val hindiTexts: Map<String, String> = mapOf(
+    "Ajustes" to "सेटिंग", "Inicio" to "होम", "Biblioteca" to "लाइब्रेरी",
+    "Suscripciones" to "सदस्यताएं", "Directos" to "लाइव", "Novedades" to "नई जानकारी",
+    "Tendencias" to "रुझान", "Buscar" to "खोजें", "Apariencia" to "दिखावट",
+    "Actualizaciones" to "अपडेट", "Vídeos" to "वीडियो", "Comentarios" to "टिप्पणियाँ",
+    "Más recientes" to "नवीनतम", "Populares" to "लोकप्रिय", "Más antiguos" to "सबसे पुराने",
+    "Historial" to "इतिहास", "Guardar" to "सहेजें", "Compartir" to "साझा करें"
+)
+private val russianTexts: Map<String, String> = mapOf(
+    "Ajustes" to "Настройки", "Inicio" to "Главная", "Biblioteca" to "Библиотека",
+    "Suscripciones" to "Подписки", "Directos" to "Эфиры", "Novedades" to "Новое",
+    "Tendencias" to "В тренде", "Buscar" to "Поиск", "Apariencia" to "Оформление",
+    "Actualizaciones" to "Обновления", "Vídeos" to "Видео", "Comentarios" to "Комментарии",
+    "Más recientes" to "Недавние", "Populares" to "Популярные", "Más antiguos" to "Старые",
+    "Historial" to "История", "Guardar" to "Сохранить", "Compartir" to "Поделиться"
+)
+private val turkishTexts: Map<String, String> = mapOf(
+    "Ajustes" to "Ayarlar", "Inicio" to "Ana Sayfa", "Biblioteca" to "Kitaplık",
+    "Suscripciones" to "Abonelikler", "Directos" to "Canlı", "Novedades" to "Yeniler",
+    "Tendencias" to "Trendler", "Buscar" to "Ara", "Apariencia" to "Görünüm",
+    "Actualizaciones" to "Güncellemeler", "Vídeos" to "Videolar", "Comentarios" to "Yorumlar",
+    "Más recientes" to "En yeniler", "Populares" to "Popüler", "Más antiguos" to "En eskiler",
+    "Historial" to "Geçmiş", "Guardar" to "Kaydet", "Compartir" to "Paylaş"
+)
+private val dutchTexts: Map<String, String> = mapOf(
+    "Ajustes" to "Instellingen", "Inicio" to "Home", "Biblioteca" to "Bibliotheek",
+    "Suscripciones" to "Abonnementen", "Directos" to "Live", "Novedades" to "Nieuw",
+    "Tendencias" to "Trends", "Buscar" to "Zoeken", "Apariencia" to "Weergave",
+    "Actualizaciones" to "Updates", "Vídeos" to "Video's", "Comentarios" to "Reacties",
+    "Más recientes" to "Nieuwste", "Populares" to "Populair", "Más antiguos" to "Oudste",
+    "Historial" to "Geschiedenis", "Guardar" to "Opslaan", "Compartir" to "Delen"
+)
+private val polishTexts: Map<String, String> = mapOf(
+    "Ajustes" to "Ustawienia", "Inicio" to "Strona główna", "Biblioteca" to "Biblioteka",
+    "Suscripciones" to "Subskrypcje", "Directos" to "Na żywo", "Novedades" to "Nowości",
+    "Tendencias" to "Popularne", "Buscar" to "Szukaj", "Apariencia" to "Wygląd",
+    "Actualizaciones" to "Aktualizacje", "Vídeos" to "Wideo", "Comentarios" to "Komentarze",
+    "Más recientes" to "Najnowsze", "Populares" to "Popularne", "Más antiguos" to "Najstarsze",
+    "Historial" to "Historia", "Guardar" to "Zapisz", "Compartir" to "Udostępnij"
+)
+
+private val papiamentoTexts: Map<String, String> = mapOf(
+    "Mi música" to "Mi musica",
+    "%s canciones" to "%s canticanan",
+    "Tu colección de audio, disponible sin conexión" to "Bo kolekshon di audio, disponibel sin internet",
+    "Buscar en mi música" to "Buska den mi musica",
+    "Reproducir todo" to "Reproduci tur",
+    "Añadidas recientemente" to "Añadi resientemente",
+    "Todas las canciones" to "Tur e canticanan",
+    "Descarga música desde cualquier vídeo con la opción Solo audio y aparecerá aquí." to "Deskarga musica for di un video ku Solo audio i e lo aparesi aki.",
+    "No se encontraron canciones." to "No a haña canticanan.",
+    "Descarga pendiente" to "Deskarga pendiente",
+    "Quitar de Me gusta" to "Kita for di Mi gusta",
+    "No hay canciones descargadas listas." to "No tin canticanan deskarga kla.",
+    "Nuevo video" to "Video nobo",
+    "Videos nuevos" to "Videonan nobo",
+    "Sincronización con Fire TV" to "Sincronisashon ku Fire TV",
+    "Mantiene actualizado el progreso de reproducción en Fire TV." to "Ta tene progreso di reprodukshon aktualisa ku Fire TV.",
+    "Abrir enlace" to "Habri enlace",
+    "Canales" to "Kanalan",
+    "Cargando..." to "Ta carga...",
+    "Dislikes no disponibles" to "Dislikes no ta disponibel",
+    "Error al cargar más directos" to "Awega cargando mas direkto",
+    "Idioma de la app y contenido" to "Idioma di app i kontenido",
+    "Más opciones" to "Mas opshon",
+    "Modo ambiente" to "Modo ambiente",
+    "No se encontraron canales." to "No a haña kanalan.",
+    "No se encontraron videos." to "No a haña videonan.",
+    "No se pudieron cargar los dislikes" to "No por carga dislikes",
+    "No se pudo cargar el filtro del canal" to "No por carga filtro di kanal",
+    "No se pudo identificar el canal" to "No por identifika e kanal",
+    "Videos" to "Videonan",
+    "Ajustes" to "Preferensia",
+    "Inicio" to "Pagina Principal",
+    "Biblioteca" to "Biblioteca",
+    "Suscripciones" to "Suscripcionnan",
+    "Directos" to "Direkto",
+    "Novedades" to "Nobo",
+    "Tendencias" to "Popular",
+    "Buscar" to "Busca",
+    "Buscar actualización" to "Buska aktualisashon",
+    "Idioma de contenido" to "Idioma di kontenido",
+    "Del sistema" to "Di sistema",
+    "Español" to "Spaño",
+    "Inglés" to "Ingles",
+    "Portugués" to "Portugees",
+    "Francés" to "Franses",
+    "Alemán" to "Aleman",
+    "Italiano" to "Italiano",
+    "Japonés" to "Hapon",
+    "Coreano" to "Koreano",
+    "Chino" to "Chines",
+    "Árabe" to "Arabiko",
+    "Hindi" to "Hindi",
+    "Ruso" to "Ruso",
+    "Turco" to "Turko",
+    "Neerlandés" to "Hulandes",
+    "Polaco" to "Polaco",
+    "Papiamento" to "Papiamento",
+    "Más recientes" to "Mas resiente",
+    "Populares" to "Popular",
+    "Más antiguos" to "Mas bieu",
+    "Vídeos" to "Video",
+    "Shorts" to "Shorts",
+    "Listas" to "Listanan",
+    "Comentarios" to "Komentario",
+    "Ver comentarios" to "Mustra komentario",
+    "Ocultar" to "Skonde",
+    "Ver en la web" to "Mira riba web",
+    "Guardar" to "Warda",
+    "Compartir" to "Parti",
+    "Suscribirse" to "Suscribi",
+    "Suscrito" to "Suscribi",
+    "Calidad" to "Kalidat",
+    "Subtítulos" to "Subtitulo",
+    "Descargar" to "Deskarga",
+    "Recomendados" to "Rekomendá",
+    "Historial" to "Historia",
+    "Me gusta" to "Mi gusta",
+    "No me gusta" to "Mi no gusta",
+    "Más tarde" to "Despues",
+    "Región de contenido" to "Region di kontenido",
+    "Apariencia" to "Aparensia",
+    "Actualizaciones" to "Aktualisashon",
+    "RebornTube está actualizado" to "RebornTube ta aktualisa",
+    "Comprobando…" to "Ta kontrolando…",
+    "No se pudo comprobar la actualización" to "No por kontrola aktualisashon",
 )

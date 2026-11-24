@@ -68,6 +68,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -117,6 +118,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) handleIntent(intent)
 
         setContent {
+            val languageRevision = vm.languageRevision
             // Tema: Claro / Negro puro / Sistema, combinado con el color de acento elegido
             val systemDark = isSystemInDarkTheme()
             val dark = when (vm.theme) {
@@ -295,6 +297,9 @@ private fun KeepScreenOn(enabled: Boolean) {
     }
 }
 
+private const val JOHN_316_URL =
+    "https://www.biblegateway.com/passage/?search=John%203%3A16&version=NLT"
+
 @Composable
 fun MainScaffold(vm: MainViewModel, onExport: () -> Unit, onImport: () -> Unit, onTakeout: () -> Unit) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -327,6 +332,7 @@ fun MainScaffold(vm: MainViewModel, onExport: () -> Unit, onImport: () -> Unit, 
                     DrawerEntry(Icons.Default.Subscriptions, tr("Suscripciones"), vm.tab == Tab.Subscriptions) { go { vm.openSubscriptions() } }
                     DrawerEntry(Icons.Default.Subscriptions, tr("Novedades"), vm.tab == Tab.News) { go { vm.openNews() } }
                     DrawerEntry(Icons.Default.Bookmarks, tr("Listas de reproducción"), inLibrary && vm.libraryList == LibList.Playlists) { go { vm.openLibraryList(LibList.Playlists) } }
+                    DrawerEntry(Icons.Default.MusicNote, tr("Mi música"), inLibrary && vm.libraryList == LibList.Music) { go { vm.openLibraryList(LibList.Music) } }
                     DrawerEntry(Icons.Default.Download, tr("Descargas"), inLibrary && vm.libraryList == LibList.Downloads) { go { vm.openLibraryList(LibList.Downloads) } }
                     DrawerEntry(Icons.Default.History, tr("Historial"), inLibrary && vm.libraryList == LibList.History) { go { vm.openLibraryList(LibList.History) } }
                     DrawerEntry(Icons.Default.Queue, tr("Cola"), inLibrary && vm.libraryList == LibList.Queue) { go { vm.openLibraryList(LibList.Queue) } }
@@ -551,25 +557,41 @@ fun SearchScreen(vm: MainViewModel, onMenu: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Botón de menú siempre visible (también se abre deslizando desde el borde izquierdo)
-            IconButton(onClick = onMenu, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onMenu, modifier = Modifier.size(40.dp)) {
                 Icon(Icons.Default.Menu, contentDescription = tr("Abrir menú"))
             }
             Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable(onClick = onMenu).padding(vertical = 6.dp),
+                Modifier.weight(1f).padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AppMark()
-                Spacer(Modifier.width(8.dp))
-                Wordmark()
+                Row(
+                    Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onMenu),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AppMark()
+                    Spacer(Modifier.width(6.dp))
+                    Wordmark()
+                }
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "John 3:16",
+                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
+                        .clickable { vm.openExternalUrl(JOHN_316_URL, "John 3:16") }
+                        .padding(horizontal = 3.dp, vertical = 8.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
-            IconButton(onClick = { showRegionDialog = true }) {
+            IconButton(onClick = { showRegionDialog = true }, modifier = Modifier.size(40.dp)) {
                 Icon(
                     Icons.Default.Public,
                     contentDescription = tr("Región de contenido"),
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }
-            IconButton(onClick = vm::openCastSheet) {
+            IconButton(onClick = vm::openCastSheet, modifier = Modifier.size(40.dp)) {
                 Icon(
                     Icons.Default.Cast,
                     contentDescription = tr("Transmitir a la TV"),

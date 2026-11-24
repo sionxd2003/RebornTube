@@ -36,6 +36,7 @@ import org.schabi.newpipe.extractor.localization.Localization
 
 object YouTubeRepository {
     data class Region(val code: String, val nameEs: String)
+    data class ContentLanguage(val code: String, val nameEs: String)
     data class UpdateCheck(
         val available: Boolean,
         val versionName: String,
@@ -93,11 +94,35 @@ object YouTubeRepository {
         Region("TR", "Turquía"),
         Region("UA", "Ucrania"),
         Region("AE", "Emiratos Árabes Unidos"),
-        Region("VE", "Venezuela")
+        Region("VE", "Venezuela"),
+        Region("AW", "Aruba")
+    )
+
+    val languages = listOf(
+        ContentLanguage("system", "Del sistema"),
+        ContentLanguage("es", "Español"),
+        ContentLanguage("en", "Inglés"),
+        ContentLanguage("pt", "Portugués"),
+        ContentLanguage("fr", "Francés"),
+        ContentLanguage("de", "Alemán"),
+        ContentLanguage("it", "Italiano"),
+        ContentLanguage("ja", "Japonés"),
+        ContentLanguage("ko", "Coreano"),
+        ContentLanguage("zh", "Chino"),
+        ContentLanguage("ar", "Árabe"),
+        ContentLanguage("hi", "Hindi"),
+        ContentLanguage("ru", "Ruso"),
+        ContentLanguage("tr", "Turco"),
+        ContentLanguage("nl", "Neerlandés"),
+        ContentLanguage("pl", "Polaco"),
+        ContentLanguage("pap", "Papiamento")
     )
 
     fun normalizeRegionCode(code: String?): String? =
         code?.uppercase(Locale.ROOT)?.takeIf { it.matches(Regex("[A-Z]{2}")) }
+
+    fun normalizeLanguageCode(code: String?): String? =
+        code?.lowercase(Locale.ROOT)?.takeIf { it == "system" || it.matches(Regex("[a-z]{2,3}")) }
 
     suspend fun checkForUpdate(currentVersion: String): UpdateCheck = withContext(Dispatchers.IO) {
         val request = Request.Builder()
@@ -140,13 +165,55 @@ object YouTubeRepository {
         val normalized = normalizeRegionCode(code) ?: return false
         val locale = Locale(Locale.getDefault().language, normalized)
         return runCatching {
-            NewPipe.init(
-                DownloaderImpl.initialize(context),
-                Localization.fromLocale(locale),
-                ContentCountry(normalized)
-            )
+            applyContentLocalization(context, locale, normalized)
             true
         }.getOrDefault(false)
+    }
+
+    fun setContentLanguage(context: Context, code: String, regionCode: String): Boolean {
+        val language = if (code == "system") Locale.getDefault().language else code
+        val normalizedRegion = normalizeRegionCode(regionCode) ?: "US"
+        val locale = Locale(language, normalizedRegion)
+        return runCatching {
+            applyContentLocalization(context, locale, normalizedRegion)
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun applyContentLocalization(context: Context, locale: Locale, regionCode: String) {
+        val localization = Localization.fromLocale(locale)
+        val country = ContentCountry(regionCode)
+        NewPipe.setupLocalization(localization, country)
+        youtube.kioskList.forceLocalization(localization)
+        youtube.kioskList.forceContentCountry(country)
+    }
+
+    internal fun regionalFeedSeeds(regionCode: String, languageCode: String): List<String> {
+        val region = regions.firstOrNull { it.code == normalizeRegionCode(regionCode) } ?: return emptyList()
+        val englishName = when (region.code) {
+            "US" -> "United States"
+            "MX" -> "Mexico"
+            "ES" -> "Spain"
+            "AR" -> "Argentina"
+            "CO" -> "Colombia"
+            "CL" -> "Chile"
+            "PE" -> "Peru"
+            "BR" -> "Brazil"
+            "GB" -> "United Kingdom"
+            "DE" -> "Germany"
+            "FR" -> "France"
+            "IT" -> "Italy"
+            "JP" -> "Japan"
+            "KR" -> "South Korea"
+            "IN" -> "India"
+            "AW" -> "Aruba"
+            else -> region.nameEs
+        }
+        return if (languageCode == "en") {
+            listOf("trending in $englishName", "popular videos $englishName", "news $englishName")
+        } else {
+            listOf("tendencias en ${region.nameEs}", "videos populares ${region.nameEs}", "noticias ${region.nameEs}")
+        }
     }
 
     private val returnDislikeClient = OkHttpClient.Builder()
@@ -409,30 +476,58 @@ object YouTubeRepository {
             .take(limit)
     }
 
-    /**
-     * Directos: YouTube no da una lista de "en vivo" por NewPipeExtractor, así que se buscan
-     * varias consultas y se quedan solo los resultados que son emisiones en directo.
-     */
-    suspend fun live(): List<StreamInfoItem> = coroutineScope {
-        val queries = listOf("live stream now", "en directo ahora", "directos en vivo", "live now")
-        queries.map { q -> async { runCatching { search(q) }.getOrDefault(emptyList()) } }
-            .awaitAll()
-            .flatten()
-            .filter { it.streamType == StreamType.LIVE_STREAM }
-            .distinctBy { it.url }
+    /** Kiosco global "live" de NewPipeExtractor, con paginación real de YouTube. */
+    class LiveCursor {
+        private var started = false
+        private var nextPage: Page? = null
+        private val seen = HashSet<String>()
+        private val kioskId = org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeLiveLinkHandlerFactory.KIOSK_ID
+        private val linkFactory = youtube.kioskList.getListLinkHandlerFactoryByType(kioskId)
+
+        val hasMore: Boolean get() = !started || nextPage != null
+
+        suspend fun next(): List<StreamInfoItem> = withContext(Dispatchers.IO) {
+            val linkHandler = linkFactory.fromId(kioskId)
+            val page = if (!started) {
+                started = true
+                val info = KioskInfo.getInfo(youtube, linkHandler.url)
+                nextPage = info.nextPage
+                info.relatedItems
+            } else {
+                val continuation = nextPage ?: return@withContext emptyList()
+                val more = KioskInfo.getMoreItems(youtube, linkHandler.url, continuation)
+                nextPage = more.nextPage
+                more.items
+            }
+            page.filterIsInstance<StreamInfoItem>()
+                .filter {
+                    it.streamType == StreamType.LIVE_STREAM ||
+                        it.streamType == StreamType.AUDIO_LIVE_STREAM
+                }
+                .filter { seen.add(it.url) }
+        }
     }
+
+    suspend fun live(): List<StreamInfoItem> = LiveCursor().next()
 
     /**
      * "Para ti" (FYP) local: YouTube no ofrece su portada por NewPipeExtractor,
      * así que la construimos buscando a partir de lo que has visto (o temas por defecto)
      * y mezclando los resultados.
      */
-    suspend fun feed(seedTitles: List<String>): List<StreamInfoItem> = coroutineScope {
-        val seeds = if (seedTitles.isEmpty()) defaultTopics.shuffled().take(3)
-        else seedTitles
+    suspend fun feed(
+        seedTitles: List<String>,
+        regionCode: String = Locale.getDefault().country,
+        languageCode: String = Locale.getDefault().language,
+        serviceId: Int = youtube.serviceId
+    ): List<StreamInfoItem> = coroutineScope {
+        val seeds = (
+            (if (seedTitles.isEmpty()) defaultTopics.shuffled().take(3) else seedTitles).take(6) +
+                regionalFeedSeeds(regionCode, languageCode)
+            ).distinct()
 
         val lists = seeds.map { seed ->
-            async { runCatching { search(seed) }.getOrDefault(emptyList()) }
+            async { runCatching { search(seed, serviceId) }.getOrDefault(emptyList()) }
         }.awaitAll()
 
         // Intercalar resultados de cada búsqueda para variar el feed

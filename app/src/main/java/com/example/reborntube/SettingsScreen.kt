@@ -70,6 +70,36 @@ fun SettingsScreen(vm: MainViewModel) {
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
         )
+        SectionTitle(tr("Idioma de la app y contenido"))
+        var languageMenu by remember { mutableStateOf(false) }
+        Box(Modifier.padding(horizontal = 12.dp)) {
+            OutlinedButton(onClick = { languageMenu = true }) {
+                Text(
+                    tr(
+                        YouTubeRepository.languages
+                            .firstOrNull { it.code == vm.contentLanguage }
+                            ?.nameEs
+                            ?: "Del sistema"
+                    )
+                )
+            }
+            DropdownMenu(expanded = languageMenu, onDismissRequest = { languageMenu = false }) {
+                YouTubeRepository.languages.forEach { language ->
+                    DropdownMenuItem(
+                        text = { Text(tr(language.nameEs)) },
+                        onClick = {
+                            vm.selectContentLanguage(language.code)
+                            languageMenu = false
+                        }
+                    )
+                }
+            }
+        }
+        Text(
+            tr("Cambia los títulos, sugerencias y resultados que entrega el extractor sin cambiar el país de contenido."),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+        )
         PipedAccountSettings(vm)
         SectionTitle(tr("DeArrow"))
         SwitchRow(

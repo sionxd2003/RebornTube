@@ -150,6 +150,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ?: "US"
     )
         private set
+    var contentLanguage by mutableStateOf(
+        settings.getString("content_language", "system")
+            ?.takeIf { code -> code == "system" || YouTubeRepository.languages.any { it.code == code } }
+            ?: "system"
+    )
+        private set
+    var languageRevision by mutableStateOf(0)
+        private set
     private val pipedTokenStore = PipedTokenStore(app)
     private val pipedApiUrlInitialization = run {
         val saved = settings.getString("piped_api_url", PipedRepository.DEFAULT_API_URL).orEmpty()
@@ -282,6 +290,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var feedMoreLoading by mutableStateOf(false)
     private var feedNeedsRefresh = false
     private var feedJob: Job? = null
+    private var feedRequestId = 0L
+    private var searchJob: Job? = null
     private val feedTopics = listOf(
         tr("música"), tr("videojuegos"), tr("tecnología"), tr("documental"), tr("humor"), tr("cocina"), tr("deportes"), tr("ciencia"),
         tr("viajes"), tr("películas"), tr("anime"), tr("noticias"), tr("tutorial"), tr("podcast"), tr("coches"), tr("mascotas"), tr("diy")
@@ -312,6 +322,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var liveList by mutableStateOf<List<VideoCard>>(emptyList())
     var liveLoading by mutableStateOf(false)
     var liveError by mutableStateOf<String?>(null)
+    var liveHasMore by mutableStateOf(true)
+        private set
+    private var liveCursor: YouTubeRepository.LiveCursor? = null
 
     // Novedades (últimos vídeos de tus suscripciones) y tendencias
     var news by mutableStateOf<List<VideoCard>>(emptyList())
@@ -792,15 +805,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectContentRegion(code: String) {
         val normalized = YouTubeRepository.normalizeRegionCode(code) ?: return
-        if (YouTubeRepository.setContentRegion(appContext, normalized)) {
+        val regionApplied = if (contentLanguage == "system") {
+            YouTubeRepository.setContentRegion(appContext, normalized)
+        } else {
+            YouTubeRepository.setContentLanguage(appContext, contentLanguage, normalized)
+        }
+        if (regionApplied) {
             contentRegion = normalized
             settings.edit().putString("content_region", normalized).apply()
-            loadFeed()
+            feed = emptyList()
+            feedNeedsRefresh = false
+            loadFeed(forceRefresh = true)
+        }
+    }
+
+    fun selectContentLanguage(code: String) {
+        val normalized = code.takeIf { it == "system" || YouTubeRepository.languages.any { language -> language.code == it } }
+            ?: return
+        AppLanguage.overrideCode = normalized
+        if (YouTubeRepository.setContentLanguage(appContext, normalized, contentRegion)) {
+            contentLanguage = normalized
+            settings.edit().putString("content_language", normalized).apply()
+            languageRevision++
+            feed = emptyList()
+            loadFeed(forceRefresh = true)
+            appContext.findActivity()?.recreate()
         }
     }
 
     fun setService(serviceId: Int) {
         if (YouTubeRepository.supportedServices.none { it.serviceId == serviceId }) return
+        if (this.serviceId == serviceId) return
         this.serviceId = serviceId
         settings.edit().putInt("service_id", serviceId).apply()
         val filters = availableSearchFilters
@@ -810,6 +845,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         results = emptyList()
         channelResults = emptyList()
         suggestions = emptyList()
+        searchCursor = null
+        searchJob?.cancel()
+        feed = emptyList()
+        feedMoreLoading = false
+        feedNeedsRefresh = false
+        if (query.isNotBlank()) search() else loadFeed(forceRefresh = true)
     }
 
     fun refreshPipedInstances() {
@@ -1414,19 +1455,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return (titles + channels + topics).distinct().take(9)
     }
 
-    fun loadFeed() {
-        if (loading) return
+    fun loadFeed(forceRefresh: Boolean = false) {
+        if (loading && !forceRefresh) return
         feedJob?.cancel()
+        val requestId = ++feedRequestId
+        val requestedRegion = contentRegion
+        val requestedLanguage = if (contentLanguage == "system") Locale.getDefault().language else contentLanguage
+        val requestedService = serviceId
         feedJob = viewModelScope.launch {
             loading = true
             error = null
-            runCatching { YouTubeRepository.feed(nextFeedSeeds()) }
-                .onSuccess { list ->
+            try {
+                val list = YouTubeRepository.feed(
+                    nextFeedSeeds(),
+                    requestedRegion,
+                    requestedLanguage,
+                    requestedService
+                )
+                if (requestId == feedRequestId && requestedService == serviceId) {
                     feed = list.map { it.toCard() }
                 }
-                .onFailure { error = friendly(it, tr("Error al cargar el feed")) }
-            loading = false
-            feedJob = null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                if (requestId == feedRequestId) error = friendly(failure, tr("Error al cargar el feed"))
+            } finally {
+                if (requestId == feedRequestId) {
+                    loading = false
+                    feedJob = null
+                }
+            }
         }
     }
 
@@ -1434,13 +1492,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun loadMoreFeed() {
         if (feedMoreLoading || loading || feed.isEmpty()) return
         feedMoreLoading = true
+        val requestedService = serviceId
         viewModelScope.launch {
             var tries = 0
             var added = 0
             while (added == 0 && tries < 2) {
                 tries++
-                val more = runCatching { YouTubeRepository.feed(nextFeedSeeds()) }
+                val more = runCatching {
+                    YouTubeRepository.feed(
+                        nextFeedSeeds(),
+                        contentRegion,
+                        if (contentLanguage == "system") Locale.getDefault().language else contentLanguage,
+                        requestedService
+                    )
+                }
                     .getOrDefault(emptyList()).map { it.toCard() }
+                if (requestedService != serviceId) break
                 val known = feed.map { it.url }.toHashSet()
                 val fresh = more.filter { it.url !in known }
                 if (fresh.isNotEmpty()) {
@@ -1456,12 +1523,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             liveLoading = true
             liveError = null
-            runCatching { YouTubeRepository.live() }
+            liveHasMore = true
+            liveCursor = YouTubeRepository.LiveCursor()
+            runCatching { liveCursor?.next().orEmpty() }
                 .onSuccess { list ->
                     liveList = list.map { it.toCard() }
+                    liveHasMore = liveCursor?.hasMore == true
                     if (liveList.isEmpty()) liveError = tr("No se encontraron directos ahora mismo")
                 }
                 .onFailure { liveError = friendly(it, tr("Error al cargar los directos")) }
+            liveLoading = false
+        }
+    }
+
+    fun loadMoreLive() {
+        if (liveLoading || !liveHasMore) return
+        val cursor = liveCursor ?: YouTubeRepository.LiveCursor().also { liveCursor = it }
+        viewModelScope.launch {
+            liveLoading = true
+            runCatching { cursor.next() }
+                .onSuccess { more ->
+                    val known = liveList.map { it.url }.toHashSet()
+                    liveList = liveList + more.map { it.toCard() }.filter { it.url !in known }
+                    liveHasMore = cursor.hasMore
+                }
+                .onFailure { liveError = friendly(it, tr("Error al cargar más directos")) }
             liveLoading = false
         }
     }
@@ -1556,7 +1642,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadMoreShorts() = loadShorts(reset = false)
 
-    /** Mantiene listos como mÃ¡ximo dos candidatos; no descarga el contenido del vÃ­deo. */
+    /** Mantiene listos como máximo dos candidatos; no descarga el contenido del vídeo. */
     private fun prefetchLikely(cards: List<VideoCard>) {
         if (dataSaverEnabled) return
         cards.asSequence()
@@ -1596,6 +1682,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun search() {
         val q = query.trim()
         if (q.isEmpty()) return
+        searchJob?.cancel()
+        val chosenService = serviceId
         searchCompleted = false
         results = emptyList()
         channelResults = emptyList()
@@ -1604,29 +1692,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         searchHistory = library.searches()
         suggestJob?.cancel()
         suggestions = emptyList()
-        viewModelScope.launch {
+        searchJob = viewModelScope.launch {
             loading = true
             error = null
             runCatching {
                 coroutineScope {
-                    val chosenService = serviceId
                     val chosenFilter = searchFilter
                     val cursor = YouTubeRepository.SearchCursor(q, chosenService, chosenFilter)
                     searchCursor = cursor
                     val videos = async { cursor.next() }
-                    // Los canales de YouTube se buscan aparte del filtro de videos/audio y del
-                    // servicio elegido para resultados multimedia; así siguen apareciendo al
-                    // buscar nombres de creadores aunque esté seleccionado SoundCloud u otro.
                     val channels = async {
-                        runCatching {
-                            YouTubeRepository.searchChannels(q, org.schabi.newpipe.extractor.ServiceList.YouTube.serviceId)
-                        }.getOrDefault(emptyList())
+                        if (chosenService == org.schabi.newpipe.extractor.ServiceList.YouTube.serviceId) {
+                            runCatching { YouTubeRepository.searchChannels(q, chosenService) }
+                                .getOrDefault(emptyList())
+                        } else {
+                            emptyList<org.schabi.newpipe.extractor.channel.ChannelInfoItem>()
+                        }
                     }
                     videos.await() to channels.await()
                 }
             }
                 .onSuccess { (videos, channels) ->
-                if (query.trim() == q) {
+                if (query.trim() == q && serviceId == chosenService) {
                     results = videos.map { it.toCard() }
                     prefetchLikely(results)
                     channelResults = channels.map { it.toCard() }.take(3)
@@ -1634,12 +1721,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 }
                 .onFailure {
-                if (query.trim() == q) {
+                if (query.trim() == q && serviceId == chosenService) {
                     error = friendly(it, tr("Error al buscar"))
                     searchCompleted = true
                 }
                 }
-            if (query.trim() == q) loading = false
+            if (query.trim() == q && serviceId == chosenService) loading = false
         }
     }
 
@@ -3085,6 +3172,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startOfflineTrack(rec)
     }
 
+    fun playOfflineMusicCollection(records: List<DownloadRecord>, shuffle: Boolean) {
+        val ready = records.filter { it.audioOnly && downloadFile(it).isFile }
+        if (ready.isEmpty()) {
+            downloadMessage = tr("No hay canciones descargadas listas.")
+            return
+        }
+        offlineShuffleEnabled = shuffle
+        settings.edit().putBoolean("offline_audio_shuffle", shuffle).apply()
+        offlineAudioBaseQueue = ready
+        offlineAudioQueue = if (shuffle) {
+            val first = ready.random()
+            listOf(first) + ready.filterNot { it.fileName == first.fileName }.shuffled()
+        } else {
+            ready
+        }
+        expanded = true
+        startOfflineTrack(offlineAudioQueue.first())
+    }
+
+    fun toggleDownloadedMusicLike(record: DownloadRecord) {
+        val card = VideoCard(
+            url = record.id,
+            title = record.title,
+            channel = record.channel,
+            channelUrl = null,
+            thumb = record.thumb,
+            duration = record.duration
+        )
+        val isLiked = library.liked().any { it.url == record.id }
+        library.setVote(card, if (isLiked) 0 else 1)
+        refreshLibrary()
+    }
+
     fun playOfflineFromQueue(rec: DownloadRecord) {
         val index = offlineAudioQueue.indexOfFirst { it.fileName == rec.fileName }
         if (index >= 0) {
@@ -3528,7 +3648,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         if (!CustomYoutubeChannelTabExtractor.isAvailable(sort)) {
-            channelError = tr("Este filtro todavía requiere su parámetro de YouTube")
+            channelLoading = true
+            val tab = videosTab
+            viewModelScope.launch {
+                runCatching {
+                    val serviceId = channelUrl?.let { runCatching { YouTubeRepository.serviceIdForUrl(it) }.getOrNull() }
+                    if (tab == null) return@runCatching emptyList<VideoCard>()
+                    val first = YouTubeRepository.channelTab(tab, serviceId)
+                    val all = ArrayList<VideoCard>(
+                        first.relatedItems.filterIsInstance<StreamInfoItem>().map { it.toCard() }
+                    )
+                    var page = first.nextPage
+                    var pages = 1
+                    while (page != null && pages < 20) {
+                        val more = YouTubeRepository.moreChannelTab(tab, page, serviceId)
+                        all += more.items.filterIsInstance<StreamInfoItem>().map { it.toCard() }
+                        page = more.nextPage
+                        pages++
+                    }
+                    all
+                }
+                    .onSuccess { all ->
+                        channelVideos = if (sort == ChannelVideoSortOrder.POPULAR) {
+                            all.sortedWith(compareByDescending<VideoCard> { it.views }.thenByDescending { it.url })
+                        } else {
+                            all.reversed()
+                        }
+                        channelHasMore = false
+                        channelNextPage = null
+                        if (channelVideos.isEmpty()) channelError = tr("No hay vídeos en esta sección")
+                    }
+                    .onFailure { channelError = friendly(it, tr("No se pudo cargar el filtro del canal")) }
+                channelLoading = false
+            }
             return
         }
         viewModelScope.launch {

@@ -37,7 +37,7 @@ enum class Tab { Home, Shorts, Library, Settings, Subscriptions, Live, News, Tre
 /** Lista de shorts abierta en el visor vertical y posición inicial. */
 data class ShortsSession(val items: List<VideoCard>, val index: Int, val canLoadMore: Boolean = false)
 
-enum class LibList { History, Liked, Disliked, Later, Queue, Playlists, Downloads }
+enum class LibList { History, Liked, Disliked, Later, Queue, Playlists, Downloads, Music }
 
 /** Lista de reproducción creada por la persona (se guarda en el móvil). */
 data class Playlist(val id: String, val name: String, val items: List<VideoCard>)

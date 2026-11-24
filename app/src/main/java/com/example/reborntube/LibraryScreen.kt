@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Queue
 import androidx.compose.material.icons.filled.ThumbDown
@@ -35,6 +36,7 @@ fun LibraryScreen(vm: MainViewModel, onExport: () -> Unit, onImport: () -> Unit,
             if (id == null) PlaylistsScreen(vm) else PlaylistDetailScreen(vm, id)
         }
         LibList.Downloads -> DownloadsScreen(vm)
+        LibList.Music -> DownloadedMusicScreen(vm)
         else -> LibraryListScreen(vm, which)
     }
 }
@@ -67,7 +69,9 @@ private fun LibraryMenu(vm: MainViewModel, onExport: () -> Unit, onImport: () ->
                 vm.libraryList = LibList.Playlists
             },
             TileData(Icons.Default.Download, tr("Descargas"), trf("%s archivos", vm.downloads.size),
-                vm.downloads.firstOrNull()?.thumb) { vm.libraryList = LibList.Downloads }
+                vm.downloads.firstOrNull()?.thumb) { vm.libraryList = LibList.Downloads },
+            TileData(Icons.Default.MusicNote, tr("Mi música"), trf("%s canciones", vm.downloads.count { it.audioOnly }),
+                vm.downloads.firstOrNull { it.audioOnly }?.thumb) { vm.libraryList = LibList.Music }
         )
         Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             tiles.chunked(2).forEach { pair ->

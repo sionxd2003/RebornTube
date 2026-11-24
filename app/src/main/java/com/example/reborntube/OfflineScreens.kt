@@ -5,10 +5,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
@@ -105,7 +109,7 @@ fun DownloadsScreen(vm: MainViewModel) {
                     var menuOpen by remember(rec.dmId) { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(38.dp)) {
-                            Icon(Icons.Default.MoreVert, contentDescription = tr("MÃ¡s opciones"))
+                            Icon(Icons.Default.MoreVert, contentDescription = tr("Más opciones"))
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             if (ready) {
@@ -121,6 +125,150 @@ fun DownloadsScreen(vm: MainViewModel) {
                                 onClick = { menuOpen = false; vm.deleteDownload(rec) },
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)
                             )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DownloadedMusicScreen(vm: MainViewModel) {
+    var query by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        while (true) {
+            vm.refreshDownloads()
+            delay(1500)
+        }
+    }
+
+    val allTracks = vm.downloads.filter { it.audioOnly }
+    val tracks = allTracks.filter {
+        query.isBlank() || it.title.contains(query, true) || it.channel.contains(query, true)
+    }
+    val readyTracks = tracks.filter { vm.downloadProgress[it.dmId] == 100 }
+
+    Column(Modifier.fillMaxSize()) {
+        ScreenHeader(tr("Mi música"), onBack = { vm.libraryList = null })
+        Text(
+            tr("Tu colección de audio, disponible sin conexión"),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            placeholder = { Text(tr("Buscar en mi música")) }
+        )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { vm.playOfflineMusicCollection(readyTracks, shuffle = false) },
+                enabled = readyTracks.isNotEmpty(),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text(tr("Reproducir todo"))
+            }
+            FilledTonalButton(
+                onClick = { vm.playOfflineMusicCollection(readyTracks, shuffle = true) },
+                enabled = readyTracks.isNotEmpty(),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(Icons.Default.Shuffle, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text(tr("Aleatorio"))
+            }
+        }
+        if (allTracks.isEmpty()) {
+            NoteBox(tr("Descarga música desde cualquier vídeo con la opción Solo audio y aparecerá aquí."))
+        } else if (tracks.isEmpty()) {
+            NoteBox(tr("No se encontraron canciones."))
+        } else {
+            Text(
+                tr("Añadidas recientemente"),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 8.dp)
+            )
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(tracks.take(12), key = { "album-${it.fileName}" }) { track ->
+                    val artwork = track.artworkPath?.let { File(it) }?.takeIf { it.isFile } ?: track.thumb
+                    Column(
+                        Modifier.width(132.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable(enabled = vm.downloadProgress[track.dmId] == 100) { vm.playOffline(track) }
+                    ) {
+                        AsyncImage(
+                            model = artwork,
+                            contentDescription = track.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(132.dp).clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        )
+                        Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 6.dp))
+                        Text(track.channel, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Text(
+                tr("Todas las canciones"),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp)
+            )
+            LazyColumn(
+                Modifier.weight(1f),
+                contentPadding = PaddingValues(bottom = if (vm.miniVisible) MiniPlayerBottomSpace else 12.dp)
+            ) {
+                items(tracks, key = { it.fileName }) { track ->
+                    val ready = vm.downloadProgress[track.dmId] == 100
+                    val liked = vm.likedList.any { it.url == track.id }
+                    Row(
+                        Modifier.fillMaxWidth().clickable(enabled = ready) { vm.playOffline(track) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AsyncImage(
+                            model = track.artworkPath?.let { File(it) }?.takeIf { it.isFile } ?: track.thumb,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(54.dp).clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        )
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                if (ready) track.channel else tr("Descarga pendiente"),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(onClick = { vm.toggleDownloadedMusicLike(track) }) {
+                            Icon(
+                                if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = if (liked) tr("Quitar de Me gusta") else tr("Me gusta"),
+                                tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (ready) {
+                            IconButton(onClick = { vm.playOffline(track) }) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = tr("Reproducir"))
+                            }
                         }
                     }
                 }

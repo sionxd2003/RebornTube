@@ -209,10 +209,10 @@ class FireTvProgressService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Sincronización con Fire TV",
+                tr("Sincronización con Fire TV"),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Mantiene actualizado el progreso de reproducción en Fire TV."
+                description = tr("Mantiene actualizado el progreso de reproducción en Fire TV.")
                 setShowBadge(false)
             }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)

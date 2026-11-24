@@ -72,7 +72,7 @@ fun PlayerScreen(vm: MainViewModel, info: StreamInfo) {
         Box(Modifier.fillMaxSize().background(if (vm.ambientMode) Color.Transparent else Color.Black)) {
             VideoWithControls(vm, exo, info, Modifier.fillMaxSize(), fullscreen = true)
             vm.autoplayNextCard?.let { card ->
-                AutoplayNextPrompt(vm, card, Modifier.align(Alignment.TopCenter).padding(top = 48.dp))
+                AutoplayNextPrompt(vm, card, Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
             }
         }
     } else if (landscape) {

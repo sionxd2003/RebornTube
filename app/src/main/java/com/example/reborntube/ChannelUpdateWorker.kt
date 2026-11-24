@@ -159,7 +159,7 @@ class ChannelUpdateWorker(context: Context, params: WorkerParameters) : Coroutin
         }
         val notification = builder
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(channel.name.ifBlank { "Nuevo video" })
+            .setContentTitle(channel.name.ifBlank { tr("Nuevo video") })
             .setContentText(video.title)
             .setStyle(Notification.BigTextStyle().bigText(video.title))
             .setContentIntent(pendingIntent)
@@ -175,7 +175,7 @@ class ChannelUpdateWorker(context: Context, params: WorkerParameters) : Coroutin
         if (Build.VERSION.SDK_INT < 26) return
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
-            NotificationChannel(NOTIFICATION_CHANNEL, "Videos nuevos", NotificationManager.IMPORTANCE_DEFAULT)
+            NotificationChannel(NOTIFICATION_CHANNEL, tr("Videos nuevos"), NotificationManager.IMPORTANCE_DEFAULT)
         )
     }
 

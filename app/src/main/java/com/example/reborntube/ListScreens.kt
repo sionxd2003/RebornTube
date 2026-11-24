@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -130,6 +131,15 @@ fun LiveScreen(vm: MainViewModel) {
             contentPadding = PaddingValues(bottom = if (vm.miniVisible) MiniPlayerBottomSpace else 0.dp)
         ) {
             items(vm.liveList) { card -> VideoItem(vm, card, compact = true) }
+            item {
+                LoadMoreSentinel(
+                    hasMore = vm.liveHasMore,
+                    loading = vm.liveLoading,
+                    key = vm.liveList.size,
+                    onLoad = vm::loadMoreLive,
+                    showLoading = false
+                )
+            }
         }
     }
 }
