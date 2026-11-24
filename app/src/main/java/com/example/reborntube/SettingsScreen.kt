@@ -333,6 +333,22 @@ fun SettingsScreen(vm: MainViewModel) {
             Text(tr("Donar con Ko-fi"))
         }
 
+        SectionTitle(tr("Actualizaciones"))
+        FilledTonalButton(
+            onClick = vm::checkForUpdates,
+            enabled = !vm.updateChecking,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Text(if (vm.updateChecking) tr("Comprobando…") else tr("Buscar actualización"))
+        }
+        vm.updateMessage?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
+
         Text(
             trf("RebornTube · versión %s", BuildConfig.VERSION_NAME),
             style = MaterialTheme.typography.bodySmall,

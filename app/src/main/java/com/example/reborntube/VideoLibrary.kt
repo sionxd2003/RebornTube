@@ -89,29 +89,35 @@ class VideoLibrary(context: Context) {
     }
 
     fun isChannelNotificationsEnabled(url: String): Boolean =
-        channelKey(url) !in disabledChannelNotifications()
+        channelKey(url) in enabledChannelNotifications()
 
     fun setChannelNotificationsEnabled(url: String, enabled: Boolean) {
         val key = channelKey(url)
-        val disabled = disabledChannelNotifications().toMutableSet()
-        if (enabled) disabled.remove(key) else disabled.add(key)
+        val enabledChannels = enabledChannelNotifications().toMutableSet()
+        if (enabled) enabledChannels.add(key) else enabledChannels.remove(key)
         prefs.edit().putString(
-            DISABLED_CHANNEL_NOTIFICATIONS,
-            JSONArray(disabled.sorted()).toString()
+            ENABLED_CHANNEL_NOTIFICATIONS,
+            JSONArray(enabledChannels.sorted()).toString()
         ).apply()
     }
 
-    private fun disabledChannelNotifications(): Set<String> =
+    private fun enabledChannelNotifications(): Set<String> =
         runCatching {
-            val array = JSONArray(prefs.getString(DISABLED_CHANNEL_NOTIFICATIONS, "[]") ?: "[]")
+            val value = prefs.getString(ENABLED_CHANNEL_NOTIFICATIONS, null)
+            val array = JSONArray(value ?: "[]")
             buildSet { for (i in 0 until array.length()) add(array.getString(i)) }
         }.getOrDefault(emptySet())
 
     fun toggleSubscription(card: ChannelCard) {
         val current = subscriptions()
         val exists = current.any { channelKey(it.url) == channelKey(card.url) }
-        val updated = if (exists) current.filter { channelKey(it.url) != channelKey(card.url) }
-        else listOf(card) + current
+        val updated = if (exists) {
+            setChannelNotificationsEnabled(card.url, false)
+            current.filter { channelKey(it.url) != channelKey(card.url) }
+        } else {
+            setChannelNotificationsEnabled(card.url, true)
+            listOf(card) + current
+        }
         val arr = JSONArray()
         updated.forEach { arr.put(channelJson(it)) }
         prefs.edit().putString(SUBS, arr.toString()).apply()
@@ -464,7 +470,7 @@ class VideoLibrary(context: Context) {
         const val PLAYLISTS = "playlists"
         const val SEARCHES = "searches"
         const val DOWNLOADS = "downloads"
-        const val DISABLED_CHANNEL_NOTIFICATIONS = "disabled_channel_notifications"
+        const val ENABLED_CHANNEL_NOTIFICATIONS = "enabled_channel_notifications"
         const val MAX_HISTORY = 300
         const val MAX_PROGRESS = 1000
     }

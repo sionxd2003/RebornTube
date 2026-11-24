@@ -206,6 +206,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     @set:JvmName("setNotificationWifiOnlyState")
     var notificationWifiOnly by mutableStateOf(settings.getBoolean("notification_wifi_only", false))
         private set
+    var updateChecking by mutableStateOf(false)
+        private set
+    var updateMessage by mutableStateOf<String?>(null)
+        private set
     @set:JvmName("setDataSaverEnabledState")
     var dataSaverEnabled by mutableStateOf(settings.getBoolean("data_saver_enabled", false))
         private set
@@ -506,7 +510,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var channelHasMore by mutableStateOf(false)
     var channelSection by mutableStateOf(0) // 0 = Vídeos, 1 = Directos, 2 = Shorts, 3 = Listas
     @set:JvmName("setChannelSortState")
-    var channelSort by mutableStateOf(0) // 0 = Recientes, 1 = Populares, 2 = Antiguos
+    var channelSort by mutableStateOf(ChannelVideoSortOrder.LATEST)
     var hasLiveTab by mutableStateOf(false)
     var hasShortsTab by mutableStateOf(false)
     private var videosTab: ListLinkHandler? = null
@@ -514,6 +518,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var shortsTab: ListLinkHandler? = null
     private var channelTab: ListLinkHandler? = null
     private var channelNextPage: Page? = null
+    private var channelBrowseId: String? = null
 
     private val playerListener = object : Player.Listener {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -947,6 +952,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         notificationWifiOnly = enabled
         settings.edit().putBoolean("notification_wifi_only", enabled).apply()
         ChannelUpdateWorker.schedule(appContext)
+    }
+
+    fun checkForUpdates() {
+        if (updateChecking) return
+        updateChecking = true
+        updateMessage = null
+        viewModelScope.launch {
+            runCatching {
+                YouTubeRepository.checkForUpdate(BuildConfig.VERSION_NAME)
+            }.onSuccess { check ->
+                updateMessage = if (check.available) {
+                    trf("Hay una versión nueva: %s", check.versionName)
+                } else {
+                    tr("RebornTube está actualizado")
+                }
+                if (check.available) {
+                    openExternalUrl(check.downloadUrl ?: check.releaseUrl, tr("Actualizar RebornTube"))
+                }
+            }.onFailure {
+                updateMessage = tr("No se pudo comprobar la actualización")
+            }
+            updateChecking = false
+        }
     }
 
     fun setDataSaverEnabled(enabled: Boolean) {
@@ -1905,6 +1933,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun handlePlaybackEnded() {
+        val endedInfo = current
+        if (endedInfo != null && !isLiveInfo(endedInfo)) {
+            val duration = activePlayer.duration
+            val position = if (duration > 0) duration else activePlayer.currentPosition
+            library.setProgress(endedInfo.url, position)
+            progress = progress + (endedInfo.url to position)
+        }
         if (sleepAfterCurrent) {
             val shouldStop =
                 (sleepAfterCurrentUrl != null && current?.url == sleepAfterCurrentUrl) ||
@@ -2526,8 +2561,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val duration = p.duration
         if (duration <= 0) return
         val position = p.currentPosition
-        // Si ya casi terminó (o acaba de empezar), la próxima vez empieza desde el principio
-        val value = if (position >= duration - 10_000 || position < 5_000) 0L else position
+        // 100% conserva una barrita completa; solo reinicia si ni siquiera llegó a 5 segundos.
+        val value = when {
+            position >= duration - 10_000 -> duration
+            position < 5_000 -> 0L
+            else -> position
+        }
         library.setProgress(info.url, value)
         progress = if (value > 0) progress + (info.url to value) else progress - info.url
     }
@@ -3256,7 +3295,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         channelError = null
         channelHasMore = false
         channelSection = 0
-        channelSort = 0
+        channelSort = ChannelVideoSortOrder.LATEST
         hasLiveTab = false
         hasShortsTab = false
         hasPlaylistsTab = false
@@ -3280,6 +3319,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         ?: info.tabs.firstOrNull()
                     liveTab = info.tabs.firstOrNull { ChannelTabs.LIVESTREAMS in it.contentFilters }
                     shortsTab = info.tabs.firstOrNull { ChannelTabs.SHORTS in it.contentFilters }
+                    channelBrowseId = info.id
+                        ?.takeIf { it.startsWith("UC") }
+                        ?: Uri.parse(info.url).pathSegments.lastOrNull()
+                            ?.takeIf { it.startsWith("UC") }
                     hasLiveTab = liveTab != null
                     hasShortsTab = shortsTab != null
                     playlistsTab = info.tabs.firstOrNull { ChannelTabs.PLAYLISTS in it.contentFilters }
@@ -3294,7 +3337,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun selectChannelSection(section: Int) {
         if (channelSection == section) return
         channelSection = section
-        channelSort = 0
+        channelSort = ChannelVideoSortOrder.LATEST
         loadTab(
             when (section) {
                 1 -> liveTab
@@ -3346,9 +3389,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadMoreChannelVideos() {
-        val tab = channelTab ?: return
         val page = channelNextPage ?: return
         if (channelLoading) return
+        if (channelSection == 0 && channelSort != ChannelVideoSortOrder.LATEST) {
+            val browseId = channelBrowseId ?: return
+            viewModelScope.launch {
+                channelLoading = true
+                runCatching {
+                    YouTubeRepository.sortedChannelTab(browseId, channelSort, page.id)
+                }
+                    .onSuccess { more ->
+                        val known = channelVideos.map { it.url }.toHashSet()
+                        val fresh = more.items.map { it.toCard() }.filter { it.url !in known }
+                        channelVideos = channelVideos + fresh
+                        channelNextPage = more.nextPage
+                        channelHasMore = channelNextPage != null
+                    }
+                    .onFailure { channelError = friendly(it, tr("Error al cargar más")) }
+                channelLoading = false
+            }
+            return
+        }
+        val tab = channelTab ?: return
         viewModelScope.launch {
             channelLoading = true
             val serviceId = channelUrl?.let { runCatching { YouTubeRepository.serviceIdForUrl(it) }.getOrNull() }
@@ -3444,44 +3506,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Recientes / Populares / Antiguos: se ordenan los últimos vídeos cargados del canal (hasta ~600). */
-    fun setChannelSort(sort: Int) {
+    /** Recientes usa NewPipe; Populares y Antiguos usan el extractor Innertube propio. */
+    fun setChannelSort(sort: ChannelVideoSortOrder) {
         if (sort == channelSort) return
         channelSort = sort
-        if (sort == 0) loadTab(videosTab, 0) else loadAllChannelVideos(sort)
+        if (sort == ChannelVideoSortOrder.LATEST) {
+            loadTab(videosTab, 0)
+            return
+        }
+        loadSortedChannelVideos(sort)
     }
 
-    private fun loadAllChannelVideos(sort: Int) {
-        val tab = videosTab ?: return
-        channelTab = tab
+    private fun loadSortedChannelVideos(sort: ChannelVideoSortOrder) {
         channelVideos = emptyList()
         channelError = null
         channelHasMore = false
         channelNextPage = null
+        val browseId = channelBrowseId
+        if (browseId.isNullOrBlank()) {
+            channelError = tr("No se pudo identificar el canal")
+            return
+        }
+        if (!CustomYoutubeChannelTabExtractor.isAvailable(sort)) {
+            channelError = tr("Este filtro todavía requiere su parámetro de YouTube")
+            return
+        }
         viewModelScope.launch {
             channelLoading = true
             runCatching {
-                val serviceId = channelUrl?.let { runCatching { YouTubeRepository.serviceIdForUrl(it) }.getOrNull() }
-                val first = YouTubeRepository.channelTab(tab, serviceId)
-                val all = ArrayList<VideoCard>(
-                    first.relatedItems.filterIsInstance<StreamInfoItem>().map { it.toCard() }
-                )
-                var page = first.nextPage
-                var pages = 1
-                while (page != null && pages < 20) {
-                    val more = YouTubeRepository.moreChannelTab(tab, page, serviceId)
-                    all += more.items.filterIsInstance<StreamInfoItem>().map { it.toCard() }
-                    page = more.nextPage
-                    pages++
-                }
-                all
+                YouTubeRepository.sortedChannelTab(browseId, sort)
             }
-                .onSuccess { all ->
-                    // Los vídeos llegan del más nuevo al más viejo
-                    channelVideos = if (sort == 1) all.sortedByDescending { it.views } else all.reversed()
+                .onSuccess { page ->
+                    channelVideos = page.items.map { it.toCard() }
+                    channelNextPage = page.nextPage
+                    channelHasMore = channelNextPage != null
                     if (channelVideos.isEmpty()) channelError = tr("No hay vídeos en esta sección")
                 }
-                .onFailure { channelError = friendly(it, tr("No se pudieron cargar los vídeos")) }
+                .onFailure { channelError = friendly(it, tr("No se pudo cargar el filtro del canal")) }
             channelLoading = false
         }
     }

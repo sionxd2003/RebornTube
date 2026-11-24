@@ -15,6 +15,16 @@ fun tr(es: String): String {
 fun trf(es: String, vararg args: Any?): String = String.format(tr(es), *args)
 
 private val englishTexts: Map<String, String> = mapOf(
+    "Actualizaciones" to "Updates",
+    "Buscar actualización" to "Check for update",
+    "Comprobando…" to "Checking…",
+    "RebornTube está actualizado" to "RebornTube is up to date",
+    "Hay una versión nueva: %s" to "A new version is available: %s",
+    "No se pudo comprobar la actualización" to "Could not check for updates",
+    "Actualizar RebornTube" to "Update RebornTube",
+    "Más recientes" to "Most recent",
+    "Populares" to "Popular",
+    "Más antiguos" to "Oldest",
     "Morado" to "Purple",
     "Azul" to "Blue",
     "Verde" to "Green",

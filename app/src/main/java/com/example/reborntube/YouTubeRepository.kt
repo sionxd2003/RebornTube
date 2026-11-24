@@ -36,6 +36,12 @@ import org.schabi.newpipe.extractor.localization.Localization
 
 object YouTubeRepository {
     data class Region(val code: String, val nameEs: String)
+    data class UpdateCheck(
+        val available: Boolean,
+        val versionName: String,
+        val releaseUrl: String,
+        val downloadUrl: String?
+    )
 
     val regions = listOf(
         Region("US", "Estados Unidos"),
@@ -52,11 +58,83 @@ object YouTubeRepository {
         Region("IT", "Italia"),
         Region("JP", "Japón"),
         Region("KR", "Corea del Sur"),
-        Region("IN", "India")
+        Region("IN", "India"),
+        Region("AU", "Australia"),
+        Region("AT", "Austria"),
+        Region("BE", "Bélgica"),
+        Region("CA", "Canadá"),
+        Region("CN", "China"),
+        Region("DK", "Dinamarca"),
+        Region("EG", "Egipto"),
+        Region("FI", "Finlandia"),
+        Region("GR", "Grecia"),
+        Region("HU", "Hungría"),
+        Region("ID", "Indonesia"),
+        Region("IE", "Irlanda"),
+        Region("IL", "Israel"),
+        Region("MY", "Malasia"),
+        Region("MA", "Marruecos"),
+        Region("NL", "Países Bajos"),
+        Region("NZ", "Nueva Zelanda"),
+        Region("NO", "Noruega"),
+        Region("PK", "Pakistán"),
+        Region("PH", "Filipinas"),
+        Region("PL", "Polonia"),
+        Region("PT", "Portugal"),
+        Region("CZ", "República Checa"),
+        Region("RO", "Rumanía"),
+        Region("RU", "Rusia"),
+        Region("SA", "Arabia Saudí"),
+        Region("SG", "Singapur"),
+        Region("ZA", "Sudáfrica"),
+        Region("SE", "Suecia"),
+        Region("CH", "Suiza"),
+        Region("TH", "Tailandia"),
+        Region("TR", "Turquía"),
+        Region("UA", "Ucrania"),
+        Region("AE", "Emiratos Árabes Unidos"),
+        Region("VE", "Venezuela")
     )
 
     fun normalizeRegionCode(code: String?): String? =
         code?.uppercase(Locale.ROOT)?.takeIf { it.matches(Regex("[A-Z]{2}")) }
+
+    suspend fun checkForUpdate(currentVersion: String): UpdateCheck = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("https://api.github.com/repos/sionxd2003/RebornTube/releases/latest")
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "RebornTube/$currentVersion (Android)")
+            .build()
+        val response = returnDislikeClient.newCall(request).execute()
+        if (!response.isSuccessful) throw IllegalStateException("GitHub respondió HTTP ${response.code}")
+        val payload = response.body?.string()?.let(::JSONObject)
+            ?: throw IllegalStateException("Respuesta de actualización vacía")
+        val versionName = payload.optString("tag_name").trim().trimStart('v')
+        val releaseUrl = payload.optString("html_url")
+            .ifBlank { "https://github.com/sionxd2003/RebornTube/releases/latest" }
+        val apk = payload.optJSONArray("assets")?.let { assets ->
+            (0 until assets.length())
+                .asSequence()
+                .mapNotNull { assets.optJSONObject(it) }
+                .firstOrNull { it.optString("name").endsWith(".apk", ignoreCase = true) }
+        }
+        val downloadUrl = apk?.optString("browser_download_url")?.takeIf(String::isNotBlank)
+        UpdateCheck(isNewerVersion(currentVersion, versionName), versionName, releaseUrl, downloadUrl)
+    }
+
+    private fun isNewerVersion(current: String, latest: String): Boolean {
+        fun numbers(value: String) = Regex("""\d+""").findAll(value)
+            .map { it.value.toIntOrNull() ?: 0 }.toList()
+        val a = numbers(current)
+        val b = numbers(latest)
+        val count = maxOf(a.size, b.size)
+        for (i in 0 until count) {
+            val av = a.getOrElse(i) { 0 }
+            val bv = b.getOrElse(i) { 0 }
+            if (bv != av) return bv > av
+        }
+        return false
+    }
 
     fun setContentRegion(context: Context, code: String): Boolean {
         val normalized = normalizeRegionCode(code) ?: return false
@@ -155,6 +233,14 @@ object YouTubeRepository {
     suspend fun moreChannelTab(tab: ListLinkHandler, page: Page, serviceId: Int? = null) = withContext(Dispatchers.IO) {
         val service = serviceId?.let { NewPipe.getService(it) } ?: serviceFor(tab.url)
         ChannelTabInfo.getMoreItems(service, resolveChannelTab(service, tab), page)
+    }
+
+    suspend fun sortedChannelTab(
+        browseId: String,
+        sort: ChannelVideoSortOrder,
+        continuation: String? = null
+    ): CustomYoutubeChannelTabExtractor.ChannelVideoPage = withContext(Dispatchers.IO) {
+        CustomYoutubeChannelTabExtractor.browse(sort, browseId, continuation)
     }
 
     /** Some extractors return tab paths such as /@handle/videos instead of absolute URLs. */
@@ -328,7 +414,7 @@ object YouTubeRepository {
      * varias consultas y se quedan solo los resultados que son emisiones en directo.
      */
     suspend fun live(): List<StreamInfoItem> = coroutineScope {
-        val queries = listOf("en directo", "directo ahora", "live now", "live stream")
+        val queries = listOf("live stream now", "en directo ahora", "directos en vivo", "live now")
         queries.map { q -> async { runCatching { search(q) }.getOrDefault(emptyList()) } }
             .awaitAll()
             .flatten()

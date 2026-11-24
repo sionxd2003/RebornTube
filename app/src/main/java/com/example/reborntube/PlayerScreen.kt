@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,6 +38,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
@@ -426,6 +432,7 @@ private fun Details(vm: MainViewModel, info: StreamInfo, modifier: Modifier) {
                     }
                 }
                 PillChip(tr("Compartir"), Icons.Default.Share) { shareVideo(context, info) }
+                PillChip(tr("Ver en la web"), Icons.Default.Share) { vm.openExternal(info.toCard()) }
                 PillChip(tr("Guardar"), Icons.Default.LibraryAdd) { vm.openSaveDialog(info.toCard()) }
                 PillChip(tr("Música"), Icons.Default.MusicNote, selected = vm.audioOnly) { vm.toggleAudioOnly() }
                 if (vm.audioOnly) {
@@ -500,20 +507,34 @@ private fun Details(vm: MainViewModel, info: StreamInfo, modifier: Modifier) {
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .clickable { expanded = !expanded }
                     .padding(14.dp)
             ) {
-                Text(
-                    info.description?.content?.htmlToText() ?: "",
+                val description = info.description?.content?.htmlToText() ?: ""
+                ClickableText(
+                    text = linkAndTimestampText(description, vm),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = if (expanded) Int.MAX_VALUE else 3,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { offset ->
+                        val link = linkAndTimestampText(description, vm).getStringAnnotations(
+                            tag = "URL",
+                            start = offset,
+                            end = offset
+                        ).firstOrNull()?.item
+                        val timestamp = linkAndTimestampText(description, vm).getStringAnnotations(
+                            tag = "TIME",
+                            start = offset,
+                            end = offset
+                        ).firstOrNull()?.item
+                        if (link != null) vm.openExternalUrl(link, tr("Abrir enlace"))
+                        if (timestamp != null) vm.activePlayer.seekTo(parseCommentTimestamp(timestamp) * 1_000L)
+                    }
                 )
                 Text(
                     if (expanded) tr("Ver menos") else tr("Ver más"),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 6.dp)
+                    modifier = Modifier.padding(top = 6.dp).clickable { expanded = !expanded }
                 )
             }
         }
@@ -640,7 +661,7 @@ private fun Details(vm: MainViewModel, info: StreamInfo, modifier: Modifier) {
         }
 
         if (vm.commentsOpen) {
-            items(vm.comments) { CommentRow(it) }
+            items(vm.comments) { CommentRow(vm, it) }
 
             item {
                 vm.commentsError?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
@@ -681,8 +702,33 @@ private fun <T> PickerChip(label: String, options: List<Pair<String, T>>, onPick
     }
 }
 
+private fun linkAndTimestampText(html: String, vm: MainViewModel): AnnotatedString {
+    val text = html.htmlToText()
+    val urlRegex = Regex("""https?://[^\s<]+""")
+    val timeRegex = Regex("""(?<!\d)(?:\d{1,2}:)?[0-5]?\d:[0-5]\d(?!\d)""")
+    return buildAnnotatedString {
+        append(text)
+        urlRegex.findAll(text).forEach { match ->
+            addStyle(SpanStyle(color = androidx.compose.ui.graphics.Color.Blue, textDecoration = TextDecoration.Underline), match.range.first, match.range.last + 1)
+            addStringAnnotation("URL", match.value.trimEnd('.', ',', ')'), match.range.first, match.range.last + 1)
+        }
+        timeRegex.findAll(text).forEach { match ->
+            addStyle(SpanStyle(color = androidx.compose.ui.graphics.Color.Blue, textDecoration = TextDecoration.Underline), match.range.first, match.range.last + 1)
+            addStringAnnotation("TIME", match.value, match.range.first, match.range.last + 1)
+        }
+    }
+}
+
+private fun parseCommentTimestamp(value: String): Long {
+    val parts = value.split(":").mapNotNull { it.toLongOrNull() }
+    var seconds = 0L
+    parts.forEach { seconds = seconds * 60 + it }
+    return seconds
+}
+
 @Composable
-internal fun CommentRow(c: CommentsInfoItem) {
+internal fun CommentRow(vm: MainViewModel, c: CommentsInfoItem) {
+    val context = LocalContext.current
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         AsyncImage(
             model = c.uploaderAvatars.firstOrNull()?.url,
@@ -697,7 +743,18 @@ internal fun CommentRow(c: CommentsInfoItem) {
                 "$pinned${c.uploaderName ?: ""} · ${c.textualUploadDate ?: ""}",
                 style = MaterialTheme.typography.labelMedium
             )
-            Text(c.commentText?.content?.htmlToText() ?: "", style = MaterialTheme.typography.bodyMedium)
+            val comment = c.commentText?.content ?: ""
+            ClickableText(
+                text = linkAndTimestampText(comment, vm),
+                style = MaterialTheme.typography.bodyMedium,
+                onClick = { offset ->
+                    val annotated = linkAndTimestampText(comment, vm)
+                    val link = annotated.getStringAnnotations("URL", offset, offset).firstOrNull()?.item
+                    val timestamp = annotated.getStringAnnotations("TIME", offset, offset).firstOrNull()?.item
+                    if (link != null) vm.openExternalUrl(link, tr("Abrir enlace"))
+                    if (timestamp != null) vm.activePlayer.seekTo(parseCommentTimestamp(timestamp) * 1_000L)
+                }
+            )
             if (c.likeCount > 0) {
                 Text("👍 ${formatCount(c.likeCount.toLong())}", style = MaterialTheme.typography.labelSmall)
             }

@@ -253,7 +253,7 @@ private fun ShortsPager(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
             LazyColumn(Modifier.fillMaxHeight(0.6f), contentPadding = PaddingValues(horizontal = 16.dp)) {
-                items(vm.comments) { CommentRow(it) }
+                items(vm.comments) { CommentRow(vm, it) }
                 item {
                     vm.commentsError?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     LoadMoreSentinel(vm.hasMoreComments, vm.commentsLoading, vm.comments.size, vm::loadMoreComments)

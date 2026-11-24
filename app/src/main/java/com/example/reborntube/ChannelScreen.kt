@@ -185,6 +185,24 @@ fun ChannelScreen(vm: MainViewModel) {
                         PillChip(tr("Listas"), selected = vm.channelSection == 3) { vm.selectChannelSection(3) }
                     }
                 }
+
+                if (vm.channelSection == 0) {
+                    FlowRow(
+                        Modifier.padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        PillChip(tr("Más recientes"), selected = vm.channelSort == ChannelVideoSortOrder.LATEST) {
+                            vm.setChannelSort(ChannelVideoSortOrder.LATEST)
+                        }
+                        PillChip(tr("Populares"), selected = vm.channelSort == ChannelVideoSortOrder.POPULAR) {
+                            vm.setChannelSort(ChannelVideoSortOrder.POPULAR)
+                        }
+                        PillChip(tr("Más antiguos"), selected = vm.channelSort == ChannelVideoSortOrder.OLDEST) {
+                            vm.setChannelSort(ChannelVideoSortOrder.OLDEST)
+                        }
+                    }
+                }
             }
 
             vm.listMessage?.let {
